@@ -28,7 +28,6 @@ use crate::jobserver::Client;
 use crate::mock_command::{CommandCreatorSync, ProcessCommandCreator};
 use crate::protocol::{Compile, CompileFinished, CompileResponse, Request, Response};
 use crate::util;
-use anyhow::Context as _;
 use filetime::FileTime;
 use futures::sync::mpsc;
 use futures::{future, stream, Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};

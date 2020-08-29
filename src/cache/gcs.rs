@@ -298,14 +298,15 @@ fn sign_rsa(
     key: &[u8],
     alg: &'static dyn signature::RsaEncoding,
 ) -> Result<String> {
-    let key_pair = signature::RsaKeyPair::from_pkcs8(untrusted::Input::from(key))
-        .context("failed to deserialize rsa key")?;
+    let key_pair =
+        signature::RsaKeyPair::from_pkcs8(untrusted::Input::from(key).as_slice_less_safe())
+            .map_err(|e| anyhow::anyhow!(format!("failed to deserialize rsa key: {}", e)))?;
 
     let mut signature = vec![0; key_pair.public_modulus_len()];
     let rng = ring::rand::SystemRandom::new();
     key_pair
         .sign(alg, &rng, signing_input.as_bytes(), &mut signature)
-        .context("failed to sign JWT claim")?;
+        .map_err(|_| anyhow::anyhow!("failed to sign JWT claim"))?;
 
     Ok(base64::encode_config(&signature, base64::URL_SAFE_NO_PAD))
 }
