@@ -202,6 +202,14 @@ pub struct S3CacheConfig {
     pub key_prefix: String,
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MongoDBConfig {
+    pub url: String,
+    pub database_name: String,
+    pub collection_name: String,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CacheType {
     Azure(AzureCacheConfig),
@@ -209,6 +217,7 @@ pub enum CacheType {
     Memcached(MemcachedCacheConfig),
     Redis(RedisCacheConfig),
     S3(S3CacheConfig),
+    MongoDB(MongoDBConfig),
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -220,6 +229,7 @@ pub struct CacheConfigs {
     pub memcached: Option<MemcachedCacheConfig>,
     pub redis: Option<RedisCacheConfig>,
     pub s3: Option<S3CacheConfig>,
+    pub mongodb: Option<MongoDBConfig>,
 }
 
 impl CacheConfigs {
@@ -233,6 +243,7 @@ impl CacheConfigs {
             memcached,
             redis,
             s3,
+            mongodb,
         } = self;
 
         let caches = s3
@@ -242,6 +253,7 @@ impl CacheConfigs {
             .chain(memcached.map(CacheType::Memcached))
             .chain(gcs.map(CacheType::GCS))
             .chain(azure.map(CacheType::Azure))
+            .chain(mongodb.map(CacheType::MongoDB))
             .collect();
         let fallback = disk.unwrap_or_else(Default::default);
 
@@ -257,6 +269,7 @@ impl CacheConfigs {
             memcached,
             redis,
             s3,
+            mongodb,
         } = other;
 
         if azure.is_some() {
@@ -276,6 +289,9 @@ impl CacheConfigs {
         }
         if s3.is_some() {
             self.s3 = s3
+        }
+        if mongodb.is_some() {
+            self.mongodb = mongodb
         }
     }
 }
@@ -520,6 +536,19 @@ fn config_from_env() -> EnvConfig {
         .ok()
         .map(|_| AzureCacheConfig);
 
+    let mongodb = env::var("SCCACHE_MONGODB").ok().map(|url| {
+        let database_name =
+            env::var("SCCACHE_MONGODB_DATABASE").unwrap_or_else(|_| "sccache".into());
+        let collection_name =
+            env::var("SCCACHE_MONGODB_COLLECTION").unwrap_or_else(|_| "caches".into());
+
+        MongoDBConfig {
+            url,
+            database_name,
+            collection_name,
+        }
+    });
+
     let disk_dir = env::var_os("SCCACHE_DIR").map(PathBuf::from);
     let disk_sz = env::var("SCCACHE_CACHE_SIZE")
         .ok()
@@ -541,6 +570,7 @@ fn config_from_env() -> EnvConfig {
         memcached,
         redis,
         s3,
+        mongodb,
     };
 
     EnvConfig { cache }
