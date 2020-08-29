@@ -70,7 +70,8 @@ pub fn get_app<'a, 'b>() -> App<'a, 'b> {
                 "    Redis:     ", cfg!(feature = "redis"), "\n",
                 "    Memcached: ", cfg!(feature = "memcached"), "\n",
                 "    GCS:       ", cfg!(feature = "gcs"), "\n",
-                "    Azure:     ", cfg!(feature = "azure"), "\n")
+                "    Azure:     ", cfg!(feature = "azure"), "\n",
+                "    MongoDB:   ", cfg!(feature = "mongo"), "\n")
                 )
         .args_from_usage(
             "-s --show-stats  'show cache statistics'
