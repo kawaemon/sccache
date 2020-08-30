@@ -19,6 +19,8 @@ use crate::cache::disk::DiskCache;
 use crate::cache::gcs::{self, GCSCache, GCSCredentialProvider, RWMode, ServiceAccountInfo};
 #[cfg(feature = "memcached")]
 use crate::cache::memcached::MemcachedCache;
+#[cfg(feature = "mongo")]
+use crate::cache::mongodb::MongoDBCache;
 #[cfg(feature = "redis")]
 use crate::cache::redis::RedisCache;
 #[cfg(feature = "s3")]
@@ -392,6 +394,21 @@ pub fn storage_from_config(config: &Config, pool: &ThreadPool) -> Arc<dyn Storag
                         return Arc::new(s);
                     }
                     Err(e) => warn!("Failed to create S3Cache: {:?}", e),
+                }
+            }
+            CacheType::MongoDB(ref config) => {
+                debug!(
+                    "Trying MongoDB({}, {}, {})",
+                    config.url, config.database_name, config.collection_name
+                );
+                #[cfg(feature = "mongo")]
+                match MongoDBCache::new(&config.url, &config.database_name, &config.collection_name)
+                {
+                    Ok(s) => {
+                        trace!("Using MongoDBCache");
+                        return Arc::new(s);
+                    }
+                    Err(e) => warn!("Failed to create MongoDBCache {:?}", e),
                 }
             }
         }

@@ -21,6 +21,8 @@ pub mod disk;
 pub mod gcs;
 #[cfg(feature = "memcached")]
 pub mod memcached;
+#[cfg(feature = "mongo")]
+pub mod mongodb;
 #[cfg(feature = "redis")]
 pub mod redis;
 #[cfg(feature = "s3")]
