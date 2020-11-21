@@ -609,22 +609,30 @@ mod server {
     impl dist::JobAuthorizer for JWTJobAuthorizer {
         fn generate_token(&self, job_id: JobId) -> Result<String> {
             let claims = JobJwt { job_id };
-            jwt::encode(&JWT_HEADER, &claims, &self.server_key)
-                .map_err(|e| anyhow!("Failed to create JWT for job: {}", e))
+            jwt::encode(
+                &JWT_HEADER,
+                &claims,
+                &jwt::EncodingKey::from_secret(&self.server_key),
+            )
+            .map_err(|e| anyhow!("Failed to create JWT for job: {}", e))
         }
         fn verify_token(&self, job_id: JobId, token: &str) -> Result<()> {
             let valid_claims = JobJwt { job_id };
-            jwt::decode(&token, &self.server_key, &JWT_VALIDATION)
-                .map_err(|e| anyhow!("JWT decode failed: {}", e))
-                .and_then(|res| {
-                    fn identical_t<T>(_: &T, _: &T) {}
-                    identical_t(&res.claims, &valid_claims);
-                    if res.claims == valid_claims {
-                        Ok(())
-                    } else {
-                        Err(anyhow!("mismatched claims"))
-                    }
-                })
+            jwt::decode(
+                &token,
+                &jwt::DecodingKey::from_secret(&self.server_key),
+                &JWT_VALIDATION,
+            )
+            .map_err(|e| anyhow!("JWT decode failed: {}", e))
+            .and_then(|res| {
+                fn identical_t<T>(_: &T, _: &T) {}
+                identical_t(&res.claims, &valid_claims);
+                if res.claims == valid_claims {
+                    Ok(())
+                } else {
+                    Err(anyhow!("mismatched claims"))
+                }
+            })
         }
     }
 
