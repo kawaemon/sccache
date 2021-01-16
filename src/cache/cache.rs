@@ -39,7 +39,6 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
-use zstd;
 
 use crate::errors::*;
 
