@@ -6,8 +6,9 @@ use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{self, doc, Binary};
 use mongodb::{Client, Collection};
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::{Duration, Instant};
+use std::{io::Cursor, ops::DerefMut};
 
 // Struct which puts into MongoDB
 #[derive(Serialize, Deserialize)]
@@ -21,6 +22,7 @@ pub struct MongoDBCache {
     url: String,
     database_name: String,
     collection_name: String,
+    collection: Arc<RwLock<Option<Collection>>>,
 }
 
 impl MongoDBCache {
@@ -29,17 +31,26 @@ impl MongoDBCache {
             url: url.into(),
             database_name: database_name.into(),
             collection_name: collection_name.into(),
+            collection: Arc::new(RwLock::new(None)),
         })
     }
 
-    pub async fn connect(&self) -> Result<Collection> {
-        let collection = Client::with_uri_str(&self.url)
-            .await
-            .context("failed to create MongoDB client")?
-            .database(&self.database_name)
-            .collection(&self.collection_name);
+    async fn get_collection(&self) -> Result<RwLockReadGuard<'_, Option<Collection>>> {
+        if self.collection.read().unwrap().is_none() {
+            let mut new_collection = Some(
+                Client::with_uri_str(&self.url)
+                    .await
+                    .context("failed to create MongoDB client")?
+                    .database(&self.database_name)
+                    .collection(&self.collection_name),
+            );
 
-        Ok(collection)
+            let mut current_collection = self.collection.write().unwrap();
+
+            std::mem::swap(&mut new_collection, current_collection.deref_mut());
+        }
+
+        Ok(self.collection.read().unwrap())
     }
 }
 
@@ -50,8 +61,10 @@ impl Storage for MongoDBCache {
 
         let fut = async move {
             let data = me
-                .connect()
+                .get_collection()
                 .await?
+                .as_ref()
+                .unwrap()
                 .find_one(doc! { "key": &key }, None)
                 .await
                 .context("failed to fetch entry")?;
@@ -64,14 +77,10 @@ impl Storage for MongoDBCache {
                     let reader = CacheRead::from(Cursor::new(entry.cache.bytes))
                         .context("failed to create new cursor")?;
 
-                    log::debug!("cache hit, key: {}", key);
                     Ok(Cache::Hit(reader))
                 }
 
-                None => {
-                    log::debug!("cache miss, key: {}", key);
-                    Ok(Cache::Miss)
-                }
+                None => Ok(Cache::Miss),
             }
         };
 
@@ -94,8 +103,10 @@ impl Storage for MongoDBCache {
 
             let doc = bson::to_document(&entry).context("failed to serialize cache")?;
 
-            me.connect()
+            me.get_collection()
                 .await?
+                .as_ref()
+                .unwrap()
                 .insert_one(doc, None)
                 .await
                 .context("failed to insert to MongoDB")?;
